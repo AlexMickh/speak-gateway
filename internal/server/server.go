@@ -8,9 +8,9 @@ import (
 	"github.com/AlexMickh/speak-gateway/internal/config"
 	"github.com/AlexMickh/speak-gateway/internal/server/handlers/auth/login"
 	"github.com/AlexMickh/speak-gateway/internal/server/handlers/auth/register"
+	updatetokens "github.com/AlexMickh/speak-gateway/internal/server/handlers/auth/update-tokens"
+	verifyemail "github.com/AlexMickh/speak-gateway/internal/server/handlers/auth/verify-email"
 	"github.com/AlexMickh/speak-gateway/internal/server/middlewares"
-	"github.com/AlexMickh/speak-gateway/pkg/sl"
-	"github.com/gin-gonic/gin"
 )
 
 type AuthClient interface {
@@ -23,6 +23,9 @@ type AuthClient interface {
 		avatar []byte,
 	) (string, error)
 	Login(ctx context.Context, email, password string) (string, string, error)
+	VerifyToken(ctx context.Context, accessToken string) error
+	UpdateTokens(ctx context.Context, accessToken, refreshToken string) (string, string, error)
+	VerifyEmail(ctx context.Context, id string) error
 }
 
 type Server struct {
@@ -30,17 +33,20 @@ type Server struct {
 }
 
 func New(ctx context.Context, cfg config.Server, authClient AuthClient) *Server {
-	r := gin.Default()
+	mux := http.NewServeMux()
 
-	r.Use(middlewares.RequestLoggingMiddleware(ctx))
-	r.Use(gin.LoggerWithWriter(sl.GetFromCtx(ctx).Writer()))
+	auth := http.NewServeMux()
 
-	r.POST("/auth/register", register.New(ctx, authClient))
-	r.POST("/auth/login", login.New(ctx, authClient))
+	auth.HandleFunc("POST /auth/register", register.New(authClient))
+	auth.HandleFunc("POST /auth/login", login.New(authClient))
+	auth.HandleFunc("POST /auth/update-tokens", updatetokens.New(authClient))
+	auth.HandleFunc("PATCH /auth/verify-email", verifyemail.New(authClient))
+
+	mux.Handle("/auth/", auth)
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,
-		Handler: r.Handler(),
+		Handler: middlewares.Logger(ctx)(mux),
 	}
 
 	return &Server{

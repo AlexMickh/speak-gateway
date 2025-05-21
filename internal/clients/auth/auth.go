@@ -9,6 +9,7 @@ import (
 	"github.com/AlexMickh/speak-protos/pkg/api/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type AuthClient struct {
@@ -78,4 +79,45 @@ func (a *AuthClient) Login(ctx context.Context, email, password string) (string,
 	}
 
 	return res.GetAccessToken(), res.GetRefreshToken(), nil
+}
+
+func (a *AuthClient) VerifyToken(ctx context.Context, accessToken string) error {
+	const op = "clients.auth.VerifyToken"
+
+	_, err := a.auth.VerifyToken(ctx, &auth.VerifyTokenRequest{
+		AccessToken: accessToken,
+	})
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+func (a *AuthClient) UpdateTokens(ctx context.Context, accessToken, refreshToken string) (string, string, error) {
+	const op = "clients.auth.UpdateTokens"
+
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", accessToken)
+
+	res, err := a.auth.UpdateTokens(ctx, &auth.UpdateTokensRequest{
+		RefreshToken: refreshToken,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	return res.GetAccessToken(), res.GetRefreshToken(), nil
+}
+
+func (a *AuthClient) VerifyEmail(ctx context.Context, id string) error {
+	const op = "clients.auth.VerifyEmail"
+
+	_, err := a.auth.VerifyEmail(ctx, &auth.VerifyEmailRequest{
+		Id: id,
+	})
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
 }

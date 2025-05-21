@@ -1,49 +1,32 @@
 package middlewares
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/AlexMickh/speak-gateway/pkg/sl"
-	"github.com/gin-gonic/gin"
 )
 
-type logger struct {
-	gin.ResponseWriter
-	body bytes.Buffer
-}
+// FIXME
+func Logger(ctx context.Context) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log := sl.GetFromCtx(ctx)
 
-func (l *logger) Write(b []byte) (int, error) {
-	l.body.Write(b)
-	return l.ResponseWriter.Write(b)
-}
+			log = log.WithFields(
+				slog.String("request_id", r.Header.Get("request_id")),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("agent", r.UserAgent()),
+				slog.String("remote_addr", r.RemoteAddr),
+			)
+			log.Info(ctx, "request details")
 
-func RequestLoggingMiddleware(ctx context.Context) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		logger := &logger{
-			body:           bytes.Buffer{},
-			ResponseWriter: c.Writer,
-		}
-		c.Writer = logger
+			ctx = context.WithValue(r.Context(), sl.Key, log)
+			r = r.WithContext(ctx)
 
-		c.Next()
-
-		log := sl.GetFromCtx(ctx)
-
-		log.WithFields(
-			slog.Int("status", c.Writer.Status()),
-			slog.String("method", c.Request.Method),
-			slog.String("path", c.Request.URL.Path),
-		).Info(ctx, "request details")
-
-		// logger.WithFields(log.Fields{
-		//     "status":       ctx.Writer.Status(),
-		//     "method":       ctx.Request.Method,
-		//     "path":         ctx.Request.URL.Path,
-		//     "query_params": ctx.Request.URL.Query(),
-		//     "req_body":     string(data),
-		//     "res_body":     ginBodyLogger.body.String(),
-		// }).Info("request details")
+			next.ServeHTTP(w, r)
+		})
 	}
 }

@@ -2,12 +2,13 @@ package login
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/AlexMickh/speak-gateway/pkg/api/response"
 	"github.com/AlexMickh/speak-gateway/pkg/sl"
-	"github.com/gin-gonic/gin"
+	"github.com/AlexMickh/speak-gateway/pkg/utils/render"
 )
 
 type Loginer interface {
@@ -15,8 +16,8 @@ type Loginer interface {
 }
 
 type Request struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type Response struct {
@@ -25,32 +26,34 @@ type Response struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
-func New(ctx context.Context, auth Loginer) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func New(auth Loginer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		const op = "server.handlers.auth.login.New"
 
-		ctx = sl.GetFromCtx(ctx).With(ctx, slog.String("op", op))
+		ctx := r.Context()
 
+		ctx = sl.GetFromCtx(ctx).With(ctx, slog.String("op", op))
 		var req Request
-		if err := c.ShouldBindBodyWithJSON(&req); err != nil {
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
 			sl.GetFromCtx(ctx).Error(ctx, "not valid request", sl.Err(err))
-			c.JSON(http.StatusBadGateway, response.Error("not valid request"))
+			render.JSON(w, http.StatusBadRequest, response.Error("not valid request"))
 			return
 		}
 
 		accessToken, refreshToken, err := auth.Login(ctx, req.Email, req.Password)
 		if err != nil {
 			sl.GetFromCtx(ctx).Error(ctx, "failed to login user", sl.Err(err))
-			c.JSON(http.StatusInternalServerError, response.Error("failed to login user"))
+			render.JSON(w, http.StatusInternalServerError, response.Error("failed to login user"))
 			return
 		}
 
-		responseOK(c, accessToken, refreshToken)
+		responseOK(w, accessToken, refreshToken)
 	}
 }
 
-func responseOK(c *gin.Context, accessToken, refreshToken string) {
-	c.JSON(http.StatusOK, Response{
+func responseOK(w http.ResponseWriter, accessToken, refreshToken string) {
+	render.JSON(w, http.StatusOK, Response{
 		Response:     response.OK(),
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
