@@ -9,7 +9,7 @@ import (
 
 	"github.com/AlexMickh/speak-gateway/pkg/api/response"
 	"github.com/AlexMickh/speak-gateway/pkg/sl"
-	"github.com/gin-gonic/gin"
+	"github.com/AlexMickh/speak-gateway/pkg/utils/render"
 )
 
 type Registerer interface {
@@ -24,74 +24,79 @@ type Registerer interface {
 }
 
 type Response struct {
-	response.Response
 	Id string `json:"id,omitempty"`
 }
 
-func New(ctx context.Context, auth Registerer) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func New(auth Registerer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		const op = "server.handlers.auth.register.New"
+
+		ctx := r.Context()
 
 		ctx = sl.GetFromCtx(ctx).With(ctx, slog.String("op", op))
 
-		username := c.PostForm("username")
+		username := r.PostFormValue("username")
 		if username == "" {
 			sl.GetFromCtx(ctx).Error(ctx, "username is empty")
-			c.JSON(http.StatusBadRequest, response.Error("username is required"))
+			render.JSON(w, http.StatusBadRequest, response.Error("username is required"))
 			return
 		}
 
-		email := c.PostForm("email")
+		email := r.PostFormValue("email")
 		if email == "" {
 			sl.GetFromCtx(ctx).Error(ctx, "email is empty")
-			c.JSON(http.StatusBadRequest, response.Error("email is required"))
+			render.JSON(w, http.StatusBadRequest, response.Error("email is required"))
 			return
 		}
 
-		password := c.PostForm("password")
+		password := r.PostFormValue("password")
 		if password == "" {
 			sl.GetFromCtx(ctx).Error(ctx, "password is empty")
-			c.JSON(http.StatusBadRequest, response.Error("password is required"))
+			render.JSON(w, http.StatusBadRequest, response.Error("password is required"))
 			return
 		}
 
-		description := c.PostForm("description")
+		description := r.PostFormValue("description")
+		if description == "" {
+			sl.GetFromCtx(ctx).Error(ctx, "description is empty")
+			render.JSON(w, http.StatusBadRequest, response.Error("description is required"))
+			return
+		}
 
-		file, _, err := c.Request.FormFile("avatar")
+		file, _, err := r.FormFile("avatar")
 		if err == nil {
 			buf := new(bytes.Buffer)
 			_, err = io.Copy(buf, file)
 			if err != nil {
 				sl.GetFromCtx(ctx).Error(ctx, "failed to copy file", sl.Err(err))
-				c.JSON(http.StatusInternalServerError, response.Error("server error"))
+				render.JSON(w, http.StatusInternalServerError, response.Error("server error"))
 				return
 			}
 
 			id, err := auth.Register(ctx, username, email, password, description, buf.Bytes())
 			if err != nil {
 				sl.GetFromCtx(ctx).Error(ctx, "failed to register user", sl.Err(err))
-				c.JSON(http.StatusInternalServerError, response.Error("failed to register user"))
+				render.JSON(w, http.StatusInternalServerError, response.Error("failed to register user"))
 				return
 			}
 
-			responseOK(c, id)
+			responseOK(w, id)
 			return
 		}
 
 		id, err := auth.Register(ctx, username, email, password, description, nil)
 		if err != nil {
 			sl.GetFromCtx(ctx).Error(ctx, "failed to register user", sl.Err(err))
-			c.JSON(http.StatusInternalServerError, response.Error("failed to register user"))
+			render.JSON(w, http.StatusInternalServerError, response.Error("failed to register user"))
 			return
 		}
 
-		responseOK(c, id)
+		responseOK(w, id)
 	}
 }
 
-func responseOK(c *gin.Context, id string) {
-	c.JSON(http.StatusCreated, Response{
-		Response: response.OK(),
-		Id:       id,
+func responseOK(w http.ResponseWriter, id string) {
+	render.JSON(w, http.StatusCreated, Response{
+		Id: id,
 	})
 }
