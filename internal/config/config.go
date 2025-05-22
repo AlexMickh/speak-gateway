@@ -20,6 +20,7 @@ type Server struct {
 
 type Clients struct {
 	AuthAddr string `env:"AUTH_ADDR" env-required:"true"`
+	UserAddr string `env:"USER_ADDR" env-required:"true"`
 }
 
 func MustLoad() *Config {
