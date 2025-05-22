@@ -1,4 +1,4 @@
-package verifyemail
+package deleteuser
 
 import (
 	"context"
@@ -11,17 +11,17 @@ import (
 	"github.com/AlexMickh/speak-gateway/pkg/utils/render"
 )
 
-type EmailVerifier interface {
-	VerifyEmail(ctx context.Context, id string) error
+type UserDeleter interface {
+	DeleteUser(ctx context.Context, id string) error
 }
 
 type Request struct {
 	ID string `json:"id"`
 }
 
-func New(auth EmailVerifier) http.HandlerFunc {
+func New(user UserDeleter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		const op = "server.handlers.auth.verify-email.New"
+		const op = "server.handlers.user.delete-user.New"
 
 		ctx := r.Context()
 
@@ -35,10 +35,10 @@ func New(auth EmailVerifier) http.HandlerFunc {
 			return
 		}
 
-		err = auth.VerifyEmail(ctx, req.ID)
+		err = user.DeleteUser(ctx, req.ID)
 		if err != nil {
-			sl.GetFromCtx(ctx).Error(ctx, "failed to verify email", sl.Err(err))
-			render.JSON(w, http.StatusInternalServerError, response.Error("failed to verify email"))
+			sl.GetFromCtx(ctx).Error(ctx, "failed to delete user", sl.Err(err))
+			render.JSON(w, http.StatusInternalServerError, response.Error("failed to delete user"))
 			return
 		}
 

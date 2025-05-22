@@ -43,6 +43,9 @@ func Auth(auth TokenVerifier) func(next http.Handler) http.Handler {
 				return
 			}
 
+			ctx = context.WithValue(r.Context(), "auth", accessToken)
+			r = r.WithContext(ctx)
+
 			next.ServeHTTP(w, r)
 		})
 	}

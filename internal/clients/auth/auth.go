@@ -18,12 +18,12 @@ type AuthClient struct {
 }
 
 func New(addr string) (*AuthClient, error) {
-	const op = "grpc.clients.auth.New"
+	const op = "clients.auth.New"
 
 	var conn *grpc.ClientConn
 	var authClient auth.AuthClient
 
-	retry.WithDelay(5, 500*time.Millisecond, func() error {
+	err := retry.WithDelay(5, 500*time.Millisecond, func() error {
 		connect, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return fmt.Errorf("%s: %w", op, err)
@@ -36,6 +36,9 @@ func New(addr string) (*AuthClient, error) {
 
 		return nil
 	})
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
 
 	return &AuthClient{
 		conn: conn,
@@ -120,4 +123,8 @@ func (a *AuthClient) VerifyEmail(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (a *AuthClient) Close() {
+	a.conn.Close()
 }
